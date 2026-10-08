@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WhatsApp Keyword Bot Demo</title>
+<meta name="description" content="Live demo of a WhatsApp keyword auto-responder: editable rules, case- and accent-insensitive matching, interaction log with CSV export.">
+<style>
+  :root {
+    --wa-green: #008069; --wa-green-dark: #005c4b; --bubble-out: #d9fdd3; --bubble-in: #ffffff;
+    --chat-bg: #efeae2; --panel: #ffffff; --ink: #111b21; --muted: #667781; --line: #e2e8e5;
+    --accent: #25d366; --danger: #c0392b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         background: #d1d7db; color: var(--ink); }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 16px 40px; display: grid; gap: 20px;
+          grid-template-columns: minmax(0, 420px) minmax(0, 1fr); align-items: start; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } }
+  h1 { font-size: 1.35rem; margin: 0 0 4px; }
+  .intro { grid-column: 1 / -1; background: var(--panel); border-radius: 12px; padding: 16px 20px; }
+  .intro p { margin: 6px 0 0; color: var(--muted); line-height: 1.5; }
+  .lang { float: right; display: flex; gap: 6px; }
+  .lang button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 12px; cursor: pointer; font: inherit; }
+  .lang button.on { background: var(--wa-green); color: #fff; border-color: var(--wa-green); }
+
+  /* phone */
+  .phone { background: var(--chat-bg); border-radius: 18px; overflow: hidden; display: flex; flex-direction: column;
+           height: min(680px, 80vh); box-shadow: 0 10px 30px rgba(0,0,0,.15); }
+  .bar { background: var(--wa-green); color: #fff; display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+  .avatar { width: 38px; height: 38px; border-radius: 50%; background: #fff; color: var(--wa-green); display: grid;
+            place-items: center; font-weight: 700; }
+  .bar .name { font-weight: 600; } .bar .status { font-size: .8rem; opacity: .85; }
+  .msgs { flex: 1; overflow-y: auto; padding: 14px 12px; display: flex; flex-direction: column; gap: 6px;
+          background-image: radial-gradient(rgba(0,0,0,.035) 1px, transparent 1px); background-size: 18px 18px; }
+  .b { max-width: 80%; padding: 7px 10px 18px; border-radius: 8px; position: relative; line-height: 1.35;
+       box-shadow: 0 1px .5px rgba(0,0,0,.13); white-space: pre-wrap; word-wrap: break-word; font-size: .95rem; }
+  .b.out { align-self: flex-end; background: var(--bubble-out); border-top-right-radius: 2px; }
+  .b.in { align-self: flex-start; background: var(--bubble-in); border-top-left-radius: 2px; }
+  .b .meta { position: absolute; right: 8px; bottom: 3px; font-size: .68rem; color: var(--muted); }
+  .b .tick { color: #53bdeb; margin-left: 3px; }
+  .note { align-self: center; background: #fff8c5; color: #54656f; font-size: .78rem; padding: 4px 10px; border-radius: 8px; }
+  .typing { align-self: flex-start; background: #fff; border-radius: 8px; padding: 8px 12px; font-size: .85rem; color: var(--muted); }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 10px 0; background: #f0f2f5; }
+  .chips button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 10px; font-size: .8rem; cursor: pointer; }
+  form.send { display: flex; gap: 8px; padding: 8px 10px 10px; background: #f0f2f5; }
+  form.send input { flex: 1; border: 0; border-radius: 20px; padding: 10px 14px; font: inherit; min-width: 0; }
+  form.send button { width: 42px; height: 42px; border-radius: 50%; border: 0; background: var(--wa-green); color: #fff; font-size: 1.1rem; cursor: pointer; }
+
+  /* side panels */
+  .side { display: grid; gap: 20px; min-width: 0; }
+  .card { background: var(--panel); border-radius: 12px; padding: 16px 18px; min-width: 0; }
+  .card h2 { font-size: 1rem; margin: 0 0 4px; } .card .sub { color: var(--muted); font-size: .85rem; margin: 0 0 12px; }
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  td input { width: 100%; border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; font: inherit; }
+  .row-del { border: 0; background: none; color: var(--danger); cursor: pointer; font-size: 1rem; }
+  .btns { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .btn { border: 1px solid var(--line); background: #fff; border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; font-size: .85rem; }
+  .btn.primary { background: var(--wa-green); color: #fff; border-color: var(--wa-green); }
+  .kw { background: #e7f8ee; color: var(--wa-green-dark); border-radius: 4px; padding: 0 5px; font-weight: 600; }
+  .muted { color: var(--muted); }
+  ul.spec { margin: 0; padding-left: 18px; line-height: 1.6; font-size: .9rem; }
+  footer { grid-column: 1 / -1; text-align: center; color: #54656f; font-size: .8rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section class="intro">
+    <div class="lang"><button data-lang="en" class="on">English</button><button data-lang="es">Español</button></div>
+    <h1 data-i18n="title">WhatsApp Keyword Auto-Responder — live demo</h1>
+    <p data-i18n="lead">Type a message in the chat. If it contains a keyword from the rules table, the bot replies instantly with the paired text. No match means no reply. Edit the rules on the right and the bot uses them on the very next message, with no code changes.</p>
+  </section>
+
+  <div class="phone">
+    <div class="bar">
+      <div class="avatar">DS</div>
+      <div><div class="name">Demo Store</div><div class="status" data-i18n="online">online · auto-replies on</div></div>
+    </div>
+    <div class="msgs" id="msgs"></div>
+    <div class="chips" id="chips"></div>
+    <form class="send" id="send">
+      <input id="text" autocomplete="off" placeholder="Type a message">
+      <button aria-label="Send">➤</button>
+    </form>
+  </div>
+
+  <div class="side">
+    <div class="card">
+      <h2 data-i18n="rulesTitle">Keyword rules</h2>
+      <p class="sub" data-i18n="rulesSub">In production these live in a Google Sheet or a JSON/CSV file. Here you can edit them directly.</p>
+      <div class="tablewrap"><table>
+        <thead><tr><th data-i18n="colKeyword">Keyword or phrase</th><th data-i18n="colReply">Reply</th><th></th></tr></thead>
+        <tbody id="rules"></tbody>
+      </table></div>
+      <div class="btns">
+        <button class="btn" id="addRule" data-i18n="addRule">+ Add rule</button>
+        <button class="btn" id="resetRules" data-i18n="reset">Reset examples</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 data-i18n="logTitle">Interaction log</h2>
+      <p class="sub" data-i18n="logSub">Every message is logged with timestamp, sender, matched keyword and reply.</p>
+      <div class="tablewrap"><table>
+        <thead><tr><th data-i18n="colTime">Time</th><th data-i18n="colMsg">Message</th><th data-i18n="colKeyword2">Keyword</th><th data-i18n="colReply2">Reply sent</th></tr></thead>
+        <tbody id="log"><tr><td colspan="4" class="muted" data-i18n="logEmpty">No messages yet.</td></tr></tbody>
+      </table></div>
+      <div class="btns"><button class="btn primary" id="csv" data-i18n="csv">Export CSV</button></div>
+    </div>
+
+    <div class="card">
+      <h2 data-i18n="specTitle">What the production version does</h2>
+      <ul class="spec" id="spec"></ul>
+    </div>
+  </div>
+
+  <footer data-i18n="footer">Built by Zhengtian Huang · Python / Flask messaging bots · This page runs the same matching logic in the browser so anyone can try it without a WhatsApp number.</footer>
+</div>
+
+<script>
+const I18N = {
+  en: {
+    title: "WhatsApp Keyword Auto-Responder — live demo",
+    lead: "Type a message in the chat. If it contains a keyword from the rules table, the bot replies instantly with the paired text. No match means no reply. Edit the rules on the right and the bot uses them on the very next message, with no code changes.",
+    online: "online · auto-replies on", placeholder: "Type a message",
+    rulesTitle: "Keyword rules", rulesSub: "In production these live in a Google Sheet or a JSON/CSV file. Here you can edit them directly.",
+    colKeyword: "Keyword or phrase", colReply: "Reply", addRule: "+ Add rule", reset: "Reset examples",
+    logTitle: "Interaction log", logSub: "Every message is logged with timestamp, sender, matched keyword and reply.",
+    colTime: "Time", colMsg: "Message", colKeyword2: "Keyword", colReply2: "Reply sent", logEmpty: "No messages yet.", csv: "Export CSV",
+    noMatch: "No keyword matched, so no reply (as specified)", typing: "typing…",
+    welcome: "Try: “What are your HOURS?”, “price”, “where is your location”, or anything without a keyword.",
+    specTitle: "What the production version does",
+    spec: ["Runs on the official WhatsApp Business Cloud API (or Twilio / 360dialog), with no unofficial libraries and no ban risk",
+           "Case- and accent-insensitive matching anywhere in the message (“Información” = “informacion”); longer phrases win over shorter ones",
+           "Rules hot-reload from a Google Sheet or JSON/CSV; a malformed row is skipped and logged without breaking the others",
+           "Webhook answers instantly and a rate-limited queue sends the replies, with retry on 429, for 100+ parallel chats",
+           "Every interaction is logged to a database with CSV export, plus a step-by-step deployment guide"],
+    footer: "Built by Zhengtian Huang · Python / Flask messaging bots · This page runs the same matching logic in the browser so anyone can try it without a WhatsApp number.",
+    chips: ["What are your HOURS?", "price", "where is your location", "hello"],
+    rules: [
+      ["hours", "We're open Monday to Saturday, 9am to 6pm."],
+      ["price", "Basic plan: $29/month. Pro plan: $59/month."],
+      ["location", "We're at 123 Example Street, Melbourne VIC 3000."],
+      ["delivery", "We deliver within 2 business days. Orders over $50 ship free."],
+      ["talk to a human", "Sure, a team member will reply here shortly."]
+    ]
+  },
+  es: {
+    title: "Respuesta automática por palabras clave en WhatsApp — demo en vivo",
+    lead: "Escribe un mensaje en el chat. Si contiene una palabra clave de la tabla, el bot responde al instante con el texto asociado. Si no hay coincidencia, no responde. Edita las reglas a la derecha y el bot las usa desde el siguiente mensaje, sin tocar código.",
+    online: "en línea · respuestas automáticas activas", placeholder: "Escribe un mensaje",
+    rulesTitle: "Reglas de palabras clave", rulesSub: "En producción viven en un Google Sheet o en un archivo JSON/CSV. Aquí puedes editarlas directamente.",
+    colKeyword: "Palabra o frase clave", colReply: "Respuesta", addRule: "+ Añadir regla", reset: "Restaurar ejemplos",
+    logTitle: "Registro de interacciones", logSub: "Cada mensaje queda registrado con hora, remitente, palabra clave y respuesta.",
+    colTime: "Hora", colMsg: "Mensaje", colKeyword2: "Palabra clave", colReply2: "Respuesta enviada", logEmpty: "Aún no hay mensajes.", csv: "Exportar CSV",
+    noMatch: "Ninguna palabra clave coincidió, así que no hay respuesta (según lo especificado)", typing: "escribiendo…",
+    welcome: "Prueba: “¿Cuál es el HORARIO?”, “precio”, “necesito informacion”, o cualquier frase sin palabra clave.",
+    specTitle: "Qué hace la versión en producción",
+    spec: ["Funciona con la API oficial de WhatsApp Business Cloud (o Twilio / 360dialog), sin librerías no oficiales ni riesgo de bloqueo",
+           "Coincidencia sin distinguir mayúsculas ni tildes, en cualquier parte del mensaje (“Información” = “informacion”); las frases largas tienen prioridad",
+           "Las reglas se recargan desde un Google Sheet o JSON/CSV; una fila mal escrita se ignora y se registra sin afectar a las demás",
+           "El webhook responde al instante y una cola con límite de velocidad envía las respuestas, con reintentos ante 429, para más de 100 chats en paralelo",
+           "Cada interacción se guarda en una base de datos con exportación CSV, más una guía de despliegue paso a paso"],
+    footer: "Desarrollado por Zhengtian Huang · Bots de mensajería en Python / Flask · Esta página ejecuta la misma lógica de coincidencia en el navegador para que cualquiera pueda probarla sin un número de WhatsApp.",
+    chips: ["¿Cuál es el HORARIO?", "precio", "necesito informacion", "hola"],
+    rules: [
+      ["horario", "Atendemos de lunes a sábado, de 9:00 a 18:00."],
+      ["precio", "Plan básico: USD 29 al mes. Plan pro: USD 59 al mes."],
+      ["información", "Cuéntanos qué producto te interesa y te enviamos todos los detalles."],
+      ["envío", "Enviamos en 2 días hábiles. Pedidos sobre USD 50 tienen envío gratis."],
+      ["hablar con una persona", "Claro, alguien del equipo te responderá por aquí en breve."]
+    ]
+  }
+};
+
+let lang = "en";
+let rules = [];
+const log = [];
+const $ = (id) => document.getElementById(id);
+
+// Same normalization as the Python backend: casefold + strip accents.
+const normalize = (s) => s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+function matchRule(text) {
+  const norm = normalize(text);
+  const usable = rules
+    .map(([k, r]) => [k.trim(), r.trim()])
+    .filter(([k, r]) => k && r)          // malformed rows are skipped
+    .sort((a, b) => normalize(b[0]).length - normalize(a[0]).length);
+  return usable.find(([k]) => norm.includes(normalize(k))) || null;
+}
+
+const now = () => new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function bubble(text, dir) {
+  const el = document.createElement("div");
+  el.className = "b " + dir;
+  el.innerHTML = esc(text) + `<span class="meta">${now()}${dir === "out" ? '<span class="tick">✓✓</span>' : ""}</span>`;
+  $("msgs").appendChild(el);
+  $("msgs").scrollTop = $("msgs").scrollHeight;
+}
+function note(text, cls = "note") {
+  const el = document.createElement("div");
+  el.className = cls; el.textContent = text;
+  $("msgs").appendChild(el); $("msgs").scrollTop = $("msgs").scrollHeight;
+  return el;
+}
+
+function renderRules() {
+  $("rules").innerHTML = "";
+  rules.forEach((rule, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td><input value="${esc(rule[0])}" aria-label="keyword"></td>
+                    <td><input value="${esc(rule[1])}" aria-label="reply"></td>
+                    <td><button class="row-del" aria-label="delete">✕</button></td>`;
+    const [k, r] = tr.querySelectorAll("input");
+    k.oninput = () => (rules[i][0] = k.value);
+    r.oninput = () => (rules[i][1] = r.value);
+    tr.querySelector("button").onclick = () => { rules.splice(i, 1); renderRules(); };
+    $("rules").appendChild(tr);
+  });
+}
+
+function renderLog() {
+  if (!log.length) return;
+  $("log").innerHTML = log.slice().reverse().map((e) =>
+    `<tr><td>${e.time}</td><td>${esc(e.message)}</td><td>${e.keyword ? `<span class="kw">${esc(e.keyword)}</span>` : '<span class="muted">—</span>'}</td><td>${e.reply ? esc(e.reply) : '<span class="muted">—</span>'}</td></tr>`
+  ).join("");
+}
+
+function applyLang(next) {
+  lang = next;
+  const t = I18N[lang];
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach((el) => { const v = t[el.dataset.i18n]; if (v) el.textContent = v; });
+  document.querySelectorAll(".lang button").forEach((b) => b.classList.toggle("on", b.dataset.lang === lang));
+  $("text").placeholder = t.placeholder;
+  $("spec").innerHTML = t.spec.map((s) => `<li>${esc(s)}</li>`).join("");
+  $("chips").innerHTML = "";
+  t.chips.forEach((c) => {
+    const b = document.createElement("button"); b.type = "button"; b.textContent = c;
+    b.onclick = () => send(c); $("chips").appendChild(b);
+  });
+  rules = t.rules.map((r) => r.slice());
+  renderRules();
+  $("msgs").innerHTML = "";
+  note(t.welcome);
+}
+
+function send(text) {
+  text = text.trim();
+  if (!text) return;
+  bubble(text, "out");
+  const hit = matchRule(text);
+  const entry = { time: new Date().toISOString(), sender: "+00 demo user", message: text, keyword: hit ? hit[0] : "", reply: hit ? hit[1] : "" };
+  log.push(entry); renderLog();
+  if (!hit) { note(I18N[lang].noMatch); return; }
+  const typing = note(I18N[lang].typing, "typing");
+  setTimeout(() => { typing.remove(); bubble(hit[1], "in"); }, 600);
+}
+
+$("send").onsubmit = (e) => { e.preventDefault(); send($("text").value); $("text").value = ""; };
+$("addRule").onclick = () => { rules.push(["", ""]); renderRules(); $("rules").lastElementChild.querySelector("input").focus(); };
+$("resetRules").onclick = () => { rules = I18N[lang].rules.map((r) => r.slice()); renderRules(); };
+$("csv").onclick = () => {
+  const q = (s) => `"${String(s).replace(/"/g, '""')}"`;
+  const csv = ["timestamp,sender,message,keyword,reply", ...log.map((e) => [e.time, e.sender, e.message, e.keyword, e.reply].map(q).join(","))].join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv" }));
+  a.download = "interactions.csv"; a.click();
+};
+document.querySelectorAll(".lang button").forEach((b) => (b.onclick = () => applyLang(b.dataset.lang)));
+applyLang(new URLSearchParams(location.search).get("lang") === "es" ? "es" : "en");
+</script>
+</body>
+</html>
